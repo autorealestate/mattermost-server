@@ -65,7 +65,7 @@ type Hub struct {
 	checkRegistered chan *webConnSessionMessage
 	checkConn       chan *webConnCheckMessage
 	mu              sync.Mutex
-	subscriptions   map[model.WebsocketSubscriptionID]map[*WebConn]bool
+	subscriptions   map[model.WebsocketSubscriptionID]map[*WebConn]bool // TODO: Need to clean these up when connections are closed. Should subscriptions live in the hubConnectionIndex instead?
 }
 
 // newWebHub creates a new Hub.
