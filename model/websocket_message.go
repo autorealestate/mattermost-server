@@ -75,6 +75,9 @@ const (
 	WebsocketEventThreadFollowChanged                 = "thread_follow_changed"
 	WebsocketEventThreadReadChanged                   = "thread_read_changed"
 	WebsocketFirstAdminVisitMarketplaceStatusReceived = "first_admin_visit_marketplace_status_received"
+	WebsocketEventSubscribe                           = "subscribe"
+
+	WebsocketSubscriptionInsights WebsocketSubscriptionID = "insights"
 )
 
 type WebSocketMessage interface {
@@ -93,6 +96,7 @@ type WebsocketBroadcast struct {
 	// ReliableClusterSend indicates whether or not the message should
 	// be sent through the cluster using the reliable, TCP backed channel.
 	ReliableClusterSend bool `json:"-"`
+	SubscriptionID      WebsocketSubscriptionID
 }
 
 func (wb *WebsocketBroadcast) copy() *WebsocketBroadcast {
@@ -155,6 +159,16 @@ type webSocketEventJSON struct {
 	Sequence  int64                  `json:"seq"`
 }
 
+type WebsocketSubscriptionID string
+
+func (si WebsocketSubscriptionID) IsValid() bool {
+	_, has := map[WebsocketSubscriptionID]bool{
+		WebsocketSubscriptionInsights: true,
+		// Add new subscription ID types here.
+	}[si]
+	return has
+}
+
 type WebSocketEvent struct {
 	event           string
 	data            map[string]interface{}
@@ -180,6 +194,10 @@ func (ev *WebSocketEvent) PrecomputeJSON() *WebSocketEvent {
 
 func (ev *WebSocketEvent) Add(key string, value interface{}) {
 	ev.data[key] = value
+}
+
+func (ev *WebSocketEvent) SetSubscription(id WebsocketSubscriptionID) {
+	ev.broadcast.SubscriptionID = id
 }
 
 func NewWebSocketEvent(event, teamId, channelId, userId string, omitUsers map[string]bool) *WebSocketEvent {

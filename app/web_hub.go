@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"runtime/debug"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -63,6 +64,8 @@ type Hub struct {
 	explicitStop    bool
 	checkRegistered chan *webConnSessionMessage
 	checkConn       chan *webConnCheckMessage
+	mu              sync.Mutex
+	subscriptions   map[model.WebsocketSubscriptionID]map[*WebConn]bool
 }
 
 // newWebHub creates a new Hub.
@@ -79,6 +82,7 @@ func newWebHub(s *Server) *Hub {
 		directMsg:       make(chan *webConnDirectMessage),
 		checkRegistered: make(chan *webConnSessionMessage),
 		checkConn:       make(chan *webConnCheckMessage),
+		subscriptions:   make(map[model.WebsocketSubscriptionID]map[*WebConn]bool),
 	}
 }
 
@@ -584,6 +588,36 @@ func (h *Hub) Start() {
 	}
 
 	go doRecoverableStart()
+}
+
+func (h *Hub) AttachSubscription(id model.WebsocketSubscriptionID, wc *WebConn) {
+	var subscriptionsForID map[*WebConn]bool
+	subscriptionsForID, has := h.subscriptions[id]
+	if !has {
+		subscriptionsForID = map[*WebConn]bool{}
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	subscriptionsForID[wc] = true
+	h.subscriptions[id] = subscriptionsForID
+}
+
+func (h *Hub) DetachSubscription(id model.WebsocketSubscriptionID, wc *WebConn) {
+	subscriptionsForID, has := h.subscriptions[id]
+	if has {
+		h.mu.Lock()
+		defer h.mu.Unlock()
+		delete(subscriptionsForID, wc)
+		h.subscriptions[id] = subscriptionsForID
+	}
+}
+
+func (h *Hub) IsSubscribed(id model.WebsocketSubscriptionID, wc *WebConn) bool {
+	if subscriptionsForID, ok := h.subscriptions[id]; ok {
+		isSubscribed := subscriptionsForID[wc]
+		return isSubscribed
+	}
+	return false
 }
 
 // hubConnectionIndex provides fast addition, removal, and iteration of web connections.

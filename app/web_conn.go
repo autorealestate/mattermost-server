@@ -380,6 +380,21 @@ func (wc *WebConn) readPump() {
 	}
 }
 
+func (wc *WebConn) Subscribe(id model.WebsocketSubscriptionID) {
+	hub := wc.App.GetHubForUserId(wc.UserId)
+	hub.AttachSubscription(id, wc)
+}
+
+func (wc *WebConn) Unsubscribe(id model.WebsocketSubscriptionID) {
+	hub := wc.App.GetHubForUserId(wc.UserId)
+	hub.DetachSubscription(id, wc)
+}
+
+func (wc *WebConn) HasSubscription(id model.WebsocketSubscriptionID) bool {
+	hub := wc.App.GetHubForUserId(wc.UserId)
+	return hub.IsSubscribed(id, wc)
+}
+
 func (wc *WebConn) writePump() {
 	ticker := time.NewTicker(pingInterval)
 	authTicker := time.NewTicker(authCheckInterval)
@@ -713,6 +728,12 @@ func (wc *WebConn) shouldSendEvent(msg *model.WebSocketEvent) bool {
 	// IMPORTANT: Do not send event if WebConn does not have a session
 	if !wc.IsAuthenticated() {
 		return false
+	}
+
+	if subscriptionID := msg.GetBroadcast().SubscriptionID; subscriptionID != "" {
+		if !wc.HasSubscription(subscriptionID) {
+			return false
+		}
 	}
 
 	// If the event contains sanitized data, only send to users that don't have permission to
